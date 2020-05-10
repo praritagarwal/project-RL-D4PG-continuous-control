@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[2]:
+# In[ ]:
 
 
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.functional as F
+import torch.nn.functional as F
 
 
-# In[3]:
+# In[ ]:
 
 
 class actor(nn.Module):
@@ -37,7 +37,7 @@ class actor(nn.Module):
         return x
 
 
-# In[4]:
+# In[ ]:
 
 
 class critic(nn.Module):
