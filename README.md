@@ -12,6 +12,10 @@ For this project, you will work with the [Reacher](https://github.com/Unity-Tech
 
 ![Trained Agent][image1]
 
+Following is a plot of the avg. score obtained during training as a function of time
+![Graph_of_scores][graphs/Reacher_scores.png]
+
+
 In this environment, a double-jointed arm can move to target locations. A reward of +0.1 is provided for each step that the agent's hand is in the goal location. Thus, the goal of your agent is to maintain its position at the target location for as many time steps as possible.
 
 The observation space consists of 33 variables corresponding to position, rotation, velocity, and angular velocities of the arm. Each action is a vector with four numbers, corresponding to torque applicable to two joints. Every entry in the action vector should be a number between -1 and 1.
@@ -62,9 +66,13 @@ The environment is considered solved, when the average (over 100 episodes) of th
 
 2. Place the file in the DRLND GitHub repository, in the `p2_continuous-control/` folder, and unzip (or decompress) the file. 
 
+Additionally, the project requires python 3.6, pytorch v1.5.0 and Unity ML-Agent v0.4.0 along with Unity. The full set of dependencies needed to build a virtual environment for this project can be found in [this file](https://github.com/praritagarwal/project-RL-navigation/blob/master/requirements.txt).
+
 ### Instructions
 
-Follow the instructions in `Continuous_Control.ipynb` to get started with training your own agent!  
+Follow the instructions in `Continuous_Control.ipynb` to get started with training your own agent! 
+
+We will implement a small variation of the DDPG algorithm. The agent is an instance of the Agent class provided in the [DDPG_Agent](DDPG_Agent.py) module while the actor and critic networks used by it are provided in the [Models](Model.py) module.  
 
 ### (Optional) Challenge: Crawler Environment
 
