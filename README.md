@@ -13,7 +13,8 @@ For this project, you will work with the [Reacher](https://github.com/Unity-Tech
 ![Trained Agent][image1]
 
 Following is a plot of the avg. score obtained during training as a function of time
-![Graph_of_scores][graphs/Reacher_scores.png]
+
+![Graph of scores](graphs/Reacher_scores.png)
 
 
 In this environment, a double-jointed arm can move to target locations. A reward of +0.1 is provided for each step that the agent's hand is in the goal location. Thus, the goal of your agent is to maintain its position at the target location for as many time steps as possible.
