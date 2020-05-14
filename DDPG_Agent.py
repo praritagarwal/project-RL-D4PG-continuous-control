@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 import numpy as np
@@ -10,29 +10,31 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# In[2]:
+# In[ ]:
 
 
 from random import sample
 from collections import deque
 from Models import actor
 from Models import critic
+from Categorical_Distributions import projected_prob_batch2_torch
 
 
-# In[3]:
+# In[ ]:
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-# In[4]:
+# In[ ]:
 
 
 class Agent():
-    def __init__(self, n_states = 33, n_actions = 4, actor_hidden = 100, 
-                 critic_hidden = 100, seed = 0, roll_out = 5, replay_buffer_size = 1e6, 
+    def __init__(self, n_states = 33, n_actions = 4, actor_hidden = 50, 
+                 critic_hidden = 300, seed = 0, roll_out = 5, replay_buffer_size = 1e6, 
                  replay_batch = 128, lr_actor = 5e-5,  lr_critic = 5e-5, epsilon = 0.3, 
-                 tau = 1e-3,  gamma = 1, update_interval = 4, noise_fn = np.random.normal):
+                 tau = 1e-3,  gamma = 1, update_interval = 4, noise_fn = np.random.normal, 
+                 vmin = -10, vmax = 10, n_atoms = 51):
         
         self.n_states = n_states
         self.n_actions = n_actions
@@ -54,13 +56,29 @@ class Agent():
         # Note D4PG paper reported that 
         # using normal distribution instead of OU noise does not affect performance
         # will also experiment with OU noise if the need arises
+        self.vmin = vmin
+        self.vmax = vmax
+        self.n_atoms = n_atoms
+        self.delta = (vmax - vmin)/(n_atoms - 1)
+        self.zi = torch.linspace(self.vmin, self.vmax, self.n_atoms).view(-1,1).to(device)
+        # in numpy using linspace is much slower than the following way of doing it
+        # but in torch its a little bit faster 
+        # I guess that this is due to the time it takes to convert from numpy to torch tensors
+        # self.zi = torch.from_numpy(np.array([ vmin + ii*self.delta for ii in range(self.n_atoms)])).view(-1,1).float().to(device)
         
+        # discounts to be applied at each step of roll_out
+        self.discounts = torch.tensor([self.gamma**powr 
+                                       for powr in range(self.roll_out - 1 )]).double().view(-1,1).to(device)
         
         self.local_actor = actor(self.n_states, self.n_actions, self.actor_hidden, self.seed).to(device)
-        self.local_critic = critic(self.n_states, self.n_actions, self.critic_hidden, self.seed).to(device)
+        # output of local critic network should be log_softmax
+        self.local_critic = critic(self.n_states, self.n_actions, self.n_atoms, 
+                                   self.critic_hidden, self.seed, output = 'logprob').to(device)
         
         self.target_actor = actor(self.n_states, self.n_actions, self.actor_hidden, self.seed).to(device)
-        self.target_critic = critic(self.n_states, self.n_actions, self.critic_hidden, self.seed).to(device)
+        # target critic should output probabilities
+        self.target_critic = critic(self.n_states, self.n_actions, self.n_atoms, 
+                                    self.critic_hidden, self.seed, output = 'prob').to(device)
         
         # initialize target_actor and target_critic weights to be 
         # the same as the corresponding local networks
@@ -77,7 +95,7 @@ class Agent():
         self.critic_optim = torch.optim.Adam(self.local_critic.parameters(), lr = self.lr_critic)
         
         # loss function
-        self.criterion = nn.MSELoss()
+        self.criterion = nn.KLDivLoss(reduction = 'batchmean')
         
         # steps counter to keep track of steps passed between updates
         self.t_step = 0
@@ -117,6 +135,7 @@ class Agent():
         states_0 = torch.from_numpy(states_0).float().to(device)
         actions_0 = torch.from_numpy(actions_0).float().to(device)
         states_fin = torch.from_numpy(states_fin).float().to(device)
+        rewards = torch.from_numpy(rewards).to(device)
         
         # get an action for the n-th state from the target actor
         self.target_actor.eval()
@@ -127,23 +146,28 @@ class Agent():
         # get the Q-value for the n-th state and action from the target critic
         self.target_critic.eval()
         with torch.no_grad():
-            fin_Qs = self.target_critic(states_fin, actions_fin)
-        self.target_critic.train()    
-            
+            # target critic directly outputs the probabilities 
+            target_probs = self.target_critic(states_fin, actions_fin)
+        self.target_critic.train() 
         
         # Compute the TD-target for the n-step bootstrap
-        discounts = np.array([self.gamma**powr for powr in range(self.roll_out - 1 )])
-        n_step_rewards = np.matmul(rewards, discounts.reshape(-1,1)) # sum of the discounted rewards collected during the roll_out
-        n_step_rewards = torch.from_numpy(n_step_rewards).float().to(device)
+        # discounts = np.array([self.gamma**powr for powr in range(self.roll_out - 1 )])
+        n_step_rewards = torch.matmul(rewards, self.discounts) # sum of the discounted rewards collected during the roll_out
+        # n_step_rewards = torch.from_numpy(n_step_rewards).float().to(device)
         # fin_done = None # was the final state a terminal state?
-        target_Q = n_step_rewards + (self.gamma**(self.roll_out -1))*fin_Qs
+        # projected_probs = n_step_rewards + (self.gamma**(self.roll_out -1))*fin_Qs
+        projected_probs = projected_prob_batch2_torch(self.vmin, self.vmax, self.n_atoms, 
+                                               self.gamma**(self.roll_out -1), n_step_rewards,  
+                                               target_probs, self.replay_batch)
+        # projected_probs = torch.from_numpy(projected_probs).float().to(device)
         
         # train the local critic
         self.critic_optim.zero_grad()
         # get a Q-value for the beginning state and action from the local critic
-        local_Q = self.local_critic(states_0, actions_0)
+        local_log_probs = self.local_critic(states_0, actions_0)
         # compute the local critic's loss
-        loss_c = self.criterion(local_Q, target_Q)
+        loss_c = self.criterion(local_log_probs, projected_probs)
+        # can I just write loss_c = - torch.sum(projected_probs*local_log_probs)/self.replay_batch
         loss_c.backward()
         self.critic_optim.step()
         
@@ -153,8 +177,9 @@ class Agent():
         local_a = self.local_actor(states_0)
         # get the Q_value for the initial state and local_a
         # this gives the actor's loss
-        loss_a = -torch.mean(self.local_critic(states_0, local_a)) 
-        # this should be: - self.local_critic(initial_state, local_a)
+        # apply torch.exp() to convert the critic's output into probabilities from log_prob
+        probs = torch.exp(self.local_critic(states_0, local_a))
+        loss_a = - torch.matmul(probs, self.zi).mean()
         loss_a.backward()
         self.actor_optim.step()
         
@@ -176,7 +201,7 @@ class Agent():
         
 
 
-# In[5]:
+# In[ ]:
 
 
 class ReplayBuffer():

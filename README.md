@@ -8,14 +8,17 @@
 
 ### Introduction
 
-For this project, you will work with the [Reacher](https://github.com/Unity-Technologies/ml-agents/blob/master/docs/Learning-Environment-Examples.md#reacher) environment.
+For this project, you will work with the [Reacher](https://github.com/Unity-Technologies/ml-agents/blob/master/docs/Learning-Environment-Examples.md#reacher) environment. We will implement the D4PG architecture to solve this environment. Thus we will distribute the training over 20 agents.
 
 ![Trained Agent][image1]
 
 Following is a plot of the avg. score obtained during training as a function of time
 
-![Graph of scores](graphs/Reacher_scores.png)
+![Graph of scores](graphs/FourStepD4PG.png)
 
+Following graph shows the Q-value distributions for action value pairs in 20 different starting states:
+
+![Graph of distributions](graphs/LearnedDistributionsForFourStepD4PG.png)
 
 In this environment, a double-jointed arm can move to target locations. A reward of +0.1 is provided for each step that the agent's hand is in the goal location. Thus, the goal of your agent is to maintain its position at the target location for as many time steps as possible.
 
